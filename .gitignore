@@ -8,3 +8,7 @@ __pycache__/
 
 # Environment
 .env
+
+.env.airflow
+logs/
+config/
