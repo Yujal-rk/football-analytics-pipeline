@@ -11,23 +11,23 @@ def _records(df: pd.DataFrame) -> list:
     return df.astype(object).where(pd.notnull(df), None).to_dict("records")
 
 
-def _execute_batch(conn, insert_sql_prefix, columns, df: pd.DataFrame, table_name: str):
-    """
-    Uses execute_values for real batched inserts (hundreds/thousands of
-    rows per round-trip) instead of executemany, which sends one row per
-    network round-trip. This matters a lot once the connection has any
-    added latency (e.g. going through Docker's network to the host).
-    """
+def _execute_batch(conn, sql, columns, df: pd.DataFrame, table_name: str):
     if df.empty:
         logger.info(f"No rows to load — skipping {table_name}")
         return
     records = _records(df)
     values = [tuple(r[c] for c in columns) for r in records]
-    sql = insert_sql_prefix + " %s"
     try:
         with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            before = cur.fetchone()[0]
+
             execute_values(cur, sql, values, page_size=5000)
-            logger.info(f"{len(values)} inserted to {table_name}")
+
+            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            after = cur.fetchone()[0]
+
+            logger.info(f"{after - before} new rows inserted to {table_name} ({len(values)} attempted)")
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -88,21 +88,20 @@ def load_dim_clubs(conn, df):
 def load_dim_players(conn, df):
     columns = ["player_id", "first_name", "last_name", "position", "sub_position",
                "foot", "height_in_cm", "date_of_birth", "country_of_birth", "current_club_id"]
-    sql_prefix = f"""
+    sql = f"""
         INSERT INTO gold.dim_players ({", ".join(columns)})
-        VALUES
+        VALUES %s
+        ON CONFLICT (player_id) DO NOTHING
     """
-    _execute_batch(conn, sql_prefix.strip(), columns, df, "dim_players")
+    _execute_batch(conn, sql.strip(), columns, df, "gold.dim_players")
 
 
 def load_fact_appearances(conn, df):
     columns = ["appearance_id", "date_id", "player_id", "club_id", "competition_id",
                "game_id", "season", "goals", "assists", "yellow_cards", "red_cards", "minutes_played"]
-    sql_prefix = f"""
+    sql = f"""
         INSERT INTO gold.fact_appearances ({", ".join(columns)})
-        VALUES
+        VALUES %s
+        ON CONFLICT (appearance_id) DO NOTHING
     """
-    # execute_values needs "ON CONFLICT" appended after the VALUES clause differently —
-    # simplest fix: drop ON CONFLICT here since gold is rebuilt fresh each run anyway
-    # (schema_gold.sql DROPs and recreates every table before this runs).
-    _execute_batch(conn, sql_prefix.strip(), columns, df, "fact_appearances")
+    _execute_batch(conn, sql.strip(), columns, df, "gold.fact_appearances")

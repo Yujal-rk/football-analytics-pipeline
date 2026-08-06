@@ -1,10 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS gold;
 
--- ── DIM DATE ─────────────────────────────────────────────────────
--- Generated from all dates in silver.games
-DROP TABLE IF EXISTS gold.dim_date CASCADE;
-CREATE TABLE gold.dim_date (
-    date_id        INTEGER      PRIMARY KEY,  -- YYYYMMDD format e.g. 20231015
+CREATE TABLE IF NOT EXISTS gold.dim_date (
+    date_id        INTEGER      PRIMARY KEY,
     full_date      DATE         NOT NULL,
     day            INTEGER      NOT NULL,
     month          INTEGER      NOT NULL,
@@ -16,9 +13,7 @@ CREATE TABLE gold.dim_date (
     is_weekend     BOOLEAN      NOT NULL
 );
 
--- ── DIM COMPETITIONS ─────────────────────────────────────────────
-DROP TABLE IF EXISTS gold.dim_competitions CASCADE;
-CREATE TABLE gold.dim_competitions (
+CREATE TABLE IF NOT EXISTS gold.dim_competitions (
     competition_id   VARCHAR(10)  PRIMARY KEY,
     name             VARCHAR(100),
     type             VARCHAR(50),
@@ -27,9 +22,7 @@ CREATE TABLE gold.dim_competitions (
     country_name     VARCHAR(100)
 );
 
--- ── DIM CLUBS ────────────────────────────────────────────────────
-DROP TABLE IF EXISTS gold.dim_clubs CASCADE;
-CREATE TABLE gold.dim_clubs (
+CREATE TABLE IF NOT EXISTS gold.dim_clubs (
     club_id          INTEGER      PRIMARY KEY,
     name             VARCHAR(100),
     competition_id   VARCHAR(10)  REFERENCES gold.dim_competitions(competition_id),
@@ -39,9 +32,7 @@ CREATE TABLE gold.dim_clubs (
     coach_name       VARCHAR(100)
 );
 
--- ── DIM PLAYERS ──────────────────────────────────────────────────
-DROP TABLE IF EXISTS gold.dim_players CASCADE;
-CREATE TABLE gold.dim_players (
+CREATE TABLE IF NOT EXISTS gold.dim_players (
     player_id        INTEGER      PRIMARY KEY,
     first_name       VARCHAR(100),
     last_name        VARCHAR(100),
@@ -54,10 +45,7 @@ CREATE TABLE gold.dim_players (
     current_club_id  INTEGER      REFERENCES gold.dim_clubs(club_id)
 );
 
--- ── FACT APPEARANCES ─────────────────────────────────────────────
--- Central fact table: one row per player per game
-DROP TABLE IF EXISTS gold.fact_appearances CASCADE;
-CREATE TABLE gold.fact_appearances (
+CREATE TABLE IF NOT EXISTS gold.fact_appearances (
     appearance_id    VARCHAR(20)  PRIMARY KEY,
     date_id          INTEGER      NOT NULL REFERENCES gold.dim_date(date_id),
     player_id        INTEGER      NOT NULL REFERENCES gold.dim_players(player_id),
@@ -65,7 +53,6 @@ CREATE TABLE gold.fact_appearances (
     competition_id   VARCHAR(10)  REFERENCES gold.dim_competitions(competition_id),
     game_id          INTEGER      NOT NULL,
     season           INTEGER,
-    -- measures
     goals            INTEGER      NOT NULL DEFAULT 0,
     assists          INTEGER      NOT NULL DEFAULT 0,
     yellow_cards     INTEGER      NOT NULL DEFAULT 0,
@@ -73,9 +60,8 @@ CREATE TABLE gold.fact_appearances (
     minutes_played   INTEGER      NOT NULL DEFAULT 0
 );
 
--- ── INDEXES ──────────────────────────────────────────────────────
-CREATE INDEX idx_fact_player      ON gold.fact_appearances(player_id);
-CREATE INDEX idx_fact_date        ON gold.fact_appearances(date_id);
-CREATE INDEX idx_fact_club        ON gold.fact_appearances(club_id);
-CREATE INDEX idx_fact_competition ON gold.fact_appearances(competition_id);
-CREATE INDEX idx_fact_season      ON gold.fact_appearances(season);
+CREATE INDEX IF NOT EXISTS idx_fact_player      ON gold.fact_appearances(player_id);
+CREATE INDEX IF NOT EXISTS idx_fact_date        ON gold.fact_appearances(date_id);
+CREATE INDEX IF NOT EXISTS idx_fact_club        ON gold.fact_appearances(club_id);
+CREATE INDEX IF NOT EXISTS idx_fact_competition ON gold.fact_appearances(competition_id);
+CREATE INDEX IF NOT EXISTS idx_fact_season      ON gold.fact_appearances(season);
