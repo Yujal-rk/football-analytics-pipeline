@@ -61,6 +61,27 @@ def extract_appearances(conn):
     """)
 
 
+def extract_appearances_chunked(conn, chunksize=100_000):
+    """
+    Same query as extract_appearances, but streamed in batches instead of
+    loaded as one 1.9M-row DataFrame -- avoids OOM on memory-constrained
+    machines. Returns an iterator: looping over it hands you one DataFrame
+    of up to `chunksize` rows at a time, instead of one big DataFrame.
+    """
+    sql = """
+        SELECT appearance_id, game_id, player_id, player_club_id,
+               yellow_cards, red_cards, goals, assists, minutes_played
+        FROM silver.appearances
+    """
+    try:
+        for chunk_df in pd.read_sql_query(sql, conn, chunksize=chunksize):
+            logger.info(f"Extracted chunk of {len(chunk_df)} rows")
+            yield chunk_df
+    except Exception as e:
+        logger.error(str(e))
+        raise
+
+
 def get_date_range(conn):
     df = pd.read_sql_query(
         "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM silver.games WHERE date IS NOT NULL",
